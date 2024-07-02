@@ -40,31 +40,39 @@ class MediafireDownloader:
         )
 
     def main(self):
-        mediafire_url = input("Please enter the Mediafire URL: ")
+        links_file = input("Please enter the file path containing Mediafire links: ").strip('"')
         output_path = input("Please enter the output folder (default is current directory): ") or "."
         threads_num = input("Please enter the number of threads to use (default is 10): ")
         threads_num = int(threads_num) if threads_num else 10
 
-        folder_or_file = findall(
-            r"mediafire\.com/(folder|file|file_premium)/([a-zA-Z0-9]+)", mediafire_url
-        )
+        links = self.extract_links_from_file(links_file)
 
-        if not folder_or_file:
-            print("Invalid link")
-            exit(1)
+        for mediafire_url in links:
+            folder_or_file = findall(
+                r"mediafire\.com/(folder|file|file_premium)/([a-zA-Z0-9]+)", mediafire_url
+            )
 
-        t, key = folder_or_file[0]
+            if not folder_or_file:
+                print(f"Invalid link: {mediafire_url}")
+                continue
 
-        if t in {"file", "file_premium"}:
-            self.get_file(key, output_path)
-        elif t == "folder":
-            self.get_folders(key, output_path, threads_num, first=True)
-        else:
-            print("Invalid link")
-            exit(1)
+            t, key = folder_or_file[0]
+
+            if t in {"file", "file_premium"}:
+                self.get_file(key, output_path)
+            elif t == "folder":
+                self.get_folders(key, output_path, threads_num, first=True)
+            else:
+                print(f"Invalid link: {mediafire_url}")
+                continue
 
         print("All downloads completed")
-        exit(0)
+
+    def extract_links_from_file(self, file_path):
+        with open(file_path, 'r') as f:
+            links = f.readlines()
+        links = [link.strip() for link in links if link.strip()]
+        return links
 
     def get_files_or_folders_api_endpoint(
         self, filefolder: str, folder_key: str, chunk: int = 1, info: bool = False
