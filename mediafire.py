@@ -1,7 +1,7 @@
 import hashlib
 import re
-from time import sleep
-from gazpacho import Soup
+import time
+import gazpacho
 import requests
 import os
 import threading
@@ -154,7 +154,7 @@ class MediafireDownloader:
             while True:
                 if all(not t.is_alive() for t in total_threads):
                     break
-                sleep(0.01)
+                time.sleep(0.01)
         except KeyboardInterrupt:
             print("Closing all threads")
             event.set()
@@ -199,7 +199,7 @@ class MediafireDownloader:
         try:
             if requests.head(download_link).headers.get("content-encoding") == "gzip":
                 html = requests.get(download_link).text
-                soup = Soup(html)
+                soup = gazpacho.Soup(html)
                 download_link = (
                     soup.find("div", {"class": "download_link"})
                     .find("a", {"class": "input popsok"})
