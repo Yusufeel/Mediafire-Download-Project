@@ -1,10 +1,10 @@
 import hashlib
-from re import findall
+import re
 from time import sleep
 from gazpacho import Soup
-from requests import head, get
-from os import path, makedirs, remove, chdir
-from threading import BoundedSemaphore, Thread, Event
+import requests
+import os
+import threading
 
 
 class MediafireDownloader:
@@ -46,7 +46,7 @@ class MediafireDownloader:
         links = self.extract_links_from_file(links_file)
 
         for mediafire_url in links:
-            folder_or_file = findall(
+            folder_or_file = re.findall(
                 r"mediafire\.com/(folder|file|file_premium)/([a-zA-Z0-9]+)", mediafire_url
             )
 
@@ -89,29 +89,29 @@ class MediafireDownloader:
         self, folder_key: str, folder_name: str, threads_num: int, first: bool = False
     ) -> None:
         if first:
-            folder_name = path.join(
+            folder_name = os.path.join(
                 folder_name,
                 self.normalize_file_or_folder_name(
-                    get(
+                    requests.get(
                         self.get_files_or_folders_api_endpoint("folder", folder_key, info=True)
                     ).json()["response"]["folder_info"]["name"]
                 ),
             )
 
-        if not path.exists(folder_name):
-            makedirs(folder_name)
-        chdir(folder_name)
+        if not os.path.exists(folder_name):
+            os.makedirs(folder_name)
+        os.chdir(folder_name)
 
         self.download_folder(folder_key, threads_num)
 
-        folder_content = get(
+        folder_content = requests.get(
             self.get_files_or_folders_api_endpoint("folders", folder_key)
         ).json()["response"]["folder_content"]
 
         if "folders" in folder_content:
             for folder in folder_content["folders"]:
                 self.get_folders(folder["folderkey"], folder["name"], threads_num)
-                chdir("..")
+                os.chdir("..")
 
     def download_folder(self, folder_key: str, threads_num: int) -> None:
         data = []
@@ -120,7 +120,7 @@ class MediafireDownloader:
 
         try:
             while more_chunks:
-                r_json = get(
+                r_json = requests.get(
                     self.get_files_or_folders_api_endpoint("files", folder_key, chunk=chunk)
                 ).json()
                 more_chunks = r_json["response"]["folder_content"]["more_chunks"] == "yes"
@@ -131,13 +131,13 @@ class MediafireDownloader:
             print("Invalid link")
             return
 
-        event = Event()
-        threadLimiter = BoundedSemaphore(threads_num)
+        event = threading.Event()
+        threadLimiter = threading.BoundedSemaphore(threads_num)
         total_threads = []
 
         for file in data:
             total_threads.append(
-                Thread(
+                threading.Thread(
                     target=self.download_file,
                     args=(
                         file,
@@ -164,14 +164,14 @@ class MediafireDownloader:
             exit(0)
 
     def get_file(self, key: str, output_path: str = None) -> None:
-        file_data = get(self.get_info_endpoint(key)).json()["response"]["file_info"]
+        file_data = requests.get(self.get_info_endpoint(key)).json()["response"]["file_info"]
 
         if output_path:
-            chdir(output_path)
+            os.chdir(output_path)
 
         self.download_file(file_data)
 
-    def download_file(self, file: dict, event: Event = None, limiter: BoundedSemaphore = None) -> None:
+    def download_file(self, file: dict, event: threading.Event = None, limiter: threading.BoundedSemaphore = None) -> None:
         if limiter:
             limiter.acquire()
 
@@ -179,7 +179,7 @@ class MediafireDownloader:
 
         filename = self.normalize_file_or_folder_name(file["filename"])
 
-        if path.exists(filename):
+        if os.path.exists(filename):
             if self.hash_file(filename) == file["hash"]:
                 print(f"{filename} already exists, skipping")
                 if limiter:
@@ -197,8 +197,8 @@ class MediafireDownloader:
                 return
 
         try:
-            if head(download_link).headers.get("content-encoding") == "gzip":
-                html = get(download_link).text
+            if requests.head(download_link).headers.get("content-encoding") == "gzip":
+                html = requests.get(download_link).text
                 soup = Soup(html)
                 download_link = (
                     soup.find("div", {"class": "download_link"})
@@ -212,7 +212,7 @@ class MediafireDownloader:
             return
 
         try:
-            with get(download_link, stream=True) as r:
+            with requests.get(download_link, stream=True) as r:
                 r.raise_for_status()
                 with open(filename, "wb") as f:
                     for chunk in r.iter_content(chunk_size=4096):
@@ -230,7 +230,7 @@ class MediafireDownloader:
 
         if event:
             if event.is_set():
-                remove(filename)
+                os.remove(filename)
                 print(f"Partially downloaded {filename} deleted")
                 if limiter:
                     limiter.release()
