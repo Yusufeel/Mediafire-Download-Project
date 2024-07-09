@@ -57,7 +57,12 @@ class MediafireDownloader:
             t, key = folder_or_file[0]
 
             if t in {"file", "file_premium"}:
-                self.get_file(key, output_path)
+                file_data = requests.get(self.get_info_endpoint(key)).json()["response"]["file_info"]
+
+                if output_path:
+                    os.chdir(output_path)
+
+                self.download_file(file_data)
             elif t == "folder":
                 self.get_folders(key, output_path, threads_num, first=True)
             else:
@@ -162,14 +167,6 @@ class MediafireDownloader:
                 thread.join()
             print("Download interrupted")
             exit(0)
-
-    def get_file(self, key: str, output_path: str = None) -> None:
-        file_data = requests.get(self.get_info_endpoint(key)).json()["response"]["file_info"]
-
-        if output_path:
-            os.chdir(output_path)
-
-        self.download_file(file_data)
 
     def download_file(self, file: dict, event: threading.Event = None, limiter: threading.BoundedSemaphore = None) -> None:
         if limiter:
