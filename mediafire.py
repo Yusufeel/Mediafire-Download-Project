@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 import hashlib
 from re import findall
 from time import sleep
@@ -213,15 +211,22 @@ class MediafireDownloader:
                 limiter.release()
             return
 
-        with get(download_link, stream=True) as r:
-            r.raise_for_status()
-            with open(filename, "wb") as f:
-                for chunk in r.iter_content(chunk_size=4096):
-                    if event:
-                        if event.is_set():
-                            break
-                    if chunk:
-                        f.write(chunk)
+        try:
+            with get(download_link, stream=True) as r:
+                r.raise_for_status()
+                with open(filename, "wb") as f:
+                    for chunk in r.iter_content(chunk_size=4096):
+                        if event:
+                            if event.is_set():
+                                break
+                        if chunk:
+                            f.write(chunk)
+        except Exception as e:
+            print(f"Error downloading {filename}: {str(e)}")
+            self.print_error(download_link)
+            if limiter:
+                limiter.release()
+            return
 
         if event:
             if event.is_set():
